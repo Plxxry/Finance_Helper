@@ -2,6 +2,8 @@ from telebot.async_telebot import AsyncTeleBot
 from telebot.asyncio_storage import StateMemoryStorage
 from telebot.asyncio_handler_backends import State, StatesGroup
 
+from telebot import asyncio_filters
+
 import config
 import asyncio
 import pymysql
@@ -15,10 +17,12 @@ conn = pymysql.connect(host='localhost', user='finance_helper_admin', password=p
 cursor = conn.cursor()
 bot = AsyncTeleBot(config.token, state_storage=StateMemoryStorage())
 
+
 class States(StatesGroup):
 	WAITING_FOR_INCOME_VALUE = State()
 	category_income = State()
 
+bot.add_custom_filter(asyncio_filters.StateFilter(bot))
 
 async def close_connection():
 	print("a")
@@ -110,13 +114,11 @@ async def chat_accountant(message):
 								   reply_markup=markup)
 
 
-@bot.callback_query_handler(lambda call: call.data in ["add_income", "add_expense"])
+@bot.callback_query_handler(lambda call: call.data == "add_income")
 async def callback_add_operation(call):
 	if call.data == "add_income":
-		await bot.set_state(call.message.from_user.id, States.WAITING_FOR_INCOME_VALUE, call.message.chat.id)
+		await bot.set_state(call.from_user.id, States.WAITING_FOR_INCOME_VALUE, call.message.chat.id)
 		print("состояние установлено")
-		async with bot.retrieve_data(call.message.from_user.id, call.message.chat.id) as data:
-			data["action"] = "value_reg"
 		await bot.send_message(call.message.chat.id, "Введите числовое значение операции")
 
 
@@ -124,7 +126,7 @@ async def callback_add_operation(call):
 async def income_value(message):
 	print(f"Получено сообщение {message} в состоянии")
 	value = float(message.text)
-
+	print(value)
 	await bot.delete_state(message.from_user.id, message.chat.id)
 	print("состояние удалено 2")
 
