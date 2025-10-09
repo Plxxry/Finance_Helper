@@ -49,18 +49,18 @@ async def director(message):
 	user_id = int(message.chat.id)
 	cursor.execute("INSERT INTO data_users (id, post) VALUES (%s, %s)", (user_id, "Директор"))
 	conn.commit()
-	await chat(message)
+	await chat_director(message)
 
 
 async def accountant(message):
 	user_id = int(message.chat.id)
 	cursor.execute("INSERT INTO data_users (id, post) VALUES (%s, %s)", (user_id, "Бухгалтер"))
 	conn.commit()
-	await chat(message)
+	await chat_accountant(message)
 
 
 @bot.message_handler(content_types=['text'])
-async def chat(message):
+async def chat_director(message):
 	cursor.execute("SELECT id FROM data_users")
 	data_users = cursor.fetchall()
 	if str(message.chat.id) in str(data_users):
@@ -68,13 +68,24 @@ async def chat(message):
 		post = cursor.fetchone()
 		if post == "Директор":
 			markup = ReplyKeyboardMarkup(resize_keyboard=True)
-			item1 = KeyboardButton("Анализ данных")
+			item1 = KeyboardButton("Управление персоналом")
 			item2 = KeyboardButton("Просмотр отчётов")
 			item3 = KeyboardButton("Просмотр операций")
 			markup.add(item1, item2, item3)
 			await bot.send_message(message.chat.id, "Выберите одну из функций ниже.",
 								   reply_markup=markup)
 		else:
+			await bot.send_message(message.chat.id, "Недостаточно прав для выполнения данной команды!")
+
+
+@bot.message_handler(content_types=['text'])
+async def chat_accountant(message):
+	cursor.execute("SELECT id FROM data_users")
+	data_users = cursor.fetchall()
+	if str(message.chat.id) in str(data_users):
+		cursor.execute(f"SELECT post FROM data_users WHERE id = {message.chat.id}")
+		post = cursor.fetchone()
+		if post == "Бухгалтер":
 			markup = ReplyKeyboardMarkup(resize_keyboard=True)
 			item1 = KeyboardButton("Ввод операций")
 			item2 = KeyboardButton("Редактирование операций")
@@ -82,6 +93,10 @@ async def chat(message):
 			markup.add(item1, item2, item3)
 			await bot.send_message(message.chat.id, "Выберите одну из функций ниже.",
 								   reply_markup=markup)
+		else:
+			await bot.send_message(message.chat.id, "У вас недостаточно прав для выполнения данной команды!")
+
+
 
 
 asyncio.run(bot.polling())
