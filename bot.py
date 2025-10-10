@@ -1,3 +1,4 @@
+from pickletools import markobject
 from telebot.async_telebot import AsyncTeleBot
 from telebot.asyncio_storage import StateMemoryStorage
 from telebot.asyncio_handler_backends import State, StatesGroup
@@ -6,14 +7,15 @@ import config
 import asyncio
 import pymysql
 from telebot.types import InlineKeyboardMarkup, ReplyKeyboardMarkup, InlineKeyboardButton, KeyboardButton
-from random import randint
 
 password = "Jbc[L(AXneWTJ!@Z"
 conn = pymysql.connect(host='localhost', user='finance_helper_admin', password=password, database='finance_helper_admin')
 cursor = conn.cursor()
 bot = AsyncTeleBot(config.token, state_storage=StateMemoryStorage())
 
+
 class States(StatesGroup):
+	WAITING_FOR_VALUE = State()
 	WAITING_FOR_INCOME_VALUE = State()
 	WAITING_FOR_EXPENSE_VALUE = State()
 	CATEGORY = State()
@@ -54,7 +56,6 @@ async def enter_income_value(message):
 
 		await bot.send_message(message.chat.id, f"✅ Доход в размере {value} записан!")
 		await bot.send_message(message.chat.id, "Укажите категорию операции (перевод / еженедельный доход и т.п.)")
-		#await chat_accountant(message)
 		await bot.set_state(message.from_user.id, States.CATEGORY, message.chat.id)
 	except ValueError:
 		await bot.send_message(message.chat.id, "❌ Ошибка! Введите числовое значение.")
@@ -85,6 +86,9 @@ async def welcome(message):
 	cursor.execute("SELECT * FROM data_users")
 	count = cursor.fetchall()
 
+	cursor.execute("SELECT id FROM data_users WHERE post = 'Директор'")
+	director = cursor.fetchall()
+
 	if str(message.chat.id) in str(data_users):
 		cursor.execute(f"SELECT post FROM data_users WHERE id = {message.chat.id}")
 		post = cursor.fetchone()
@@ -94,15 +98,23 @@ async def welcome(message):
 			await chat_accountant(message)
 	else:
 		if len(count) < 2:
-			markup = InlineKeyboardMarkup(row_width=2)
-			item1 = InlineKeyboardButton("Руководитель", callback_data="director")
-			item2 = InlineKeyboardButton("Бухгалтер", callback_data="accountant")
-			markup.add(item1, item2)
-			await bot.send_message(message.chat.id,
-								   "Приветствую!\nЯ - бот для небольшой компании, упрощающий жизнь бухгалтерам и их руководителям,\nпомогаю вести учет расходов и доходов.",
-								   reply_markup=markup)
+			if not(director):
+				markup = InlineKeyboardMarkup(row_width=2)
+				item1 = InlineKeyboardButton("Руководитель", callback_data="director")
+				item2 = InlineKeyboardButton("Бухгалтер", callback_data="accountant")
+				markup.add(item1, item2)
+				await bot.send_message(message.chat.id,
+									   "Приветствую!\nЯ - бот для небольшой компании, упрощающий жизнь бухгалтерам и их руководителям,\nпомогаю вести учет расходов и доходов.",
+									   reply_markup=markup)
+			else:
+				markup = InlineKeyboardMarkup(row_width=2)
+				item1 = InlineKeyboardButton("Бухгалтер", callback_data="accountant")
+				markup.add(item1)
+				await bot.send_message(message.chat.id,
+									   "Приветствую!\nЯ - бот для небольшой компании, упрощающий жизнь бухгалтерам и их руководителям,\nпомогаю вести учет расходов и доходов.",
+									   reply_markup=markup)
 		else:
-			await close_connection()
+			await universal_handler(message)
 
 
 @bot.callback_query_handler(lambda call: call.data == "add_operation")
@@ -130,6 +142,7 @@ async def add_expense(call):
 async def callback(call):
 	cursor.execute("SELECT id FROM data_users")
 	data_users = cursor.fetchall()
+
 
 	if str(call.message.chat.id) not in str(data_users):
 		if call.data == "director":
@@ -181,13 +194,18 @@ async def chat_accountant(message):
 
 @bot.message_handler(func=lambda message: True)
 async def universal_handler(message):
-	current_state = await bot.get_state(message.from_user.id, message.chat.id)
-	if not current_state:
-		await bot.send_message(message.chat.id, "Используйте кнопки для навигации")
+	cursor.execute("SELECT * FROM data_users")
 
+	data_users = cursor.fetchall()
+	count = len(data_users)
 
-async def close_connection():
-	pass
+	if count >= 2 and str(message.chat.id) not in str(data_users):
+		pass
+	else:
+		current_state = await bot.get_state(message.from_user.id, message.chat.id)
+		if not current_state:
+			await bot.send_message(message.chat.id, "Извините, я вас не понял, возвращаюсь в главное меню")
+			await welcome(message)
 
 
 if __name__ == "__main__":
