@@ -14,7 +14,6 @@ bot = AsyncTeleBot(config.token, state_storage=StateMemoryStorage())
 
 
 class States(StatesGroup):
-	WAITING_FOR_VALUE = State()
 	WAITING_FOR_INCOME_VALUE = State()
 	WAITING_FOR_EXPENSE_VALUE = State()
 	CATEGORY = State()
@@ -82,6 +81,7 @@ async def enter_expense_value(message):
 async def welcome(message):
 	cursor.execute("SELECT id FROM data_users")
 	data_users = cursor.fetchall()
+
 	cursor.execute("SELECT * FROM data_users")
 	count = cursor.fetchall()
 
@@ -91,7 +91,8 @@ async def welcome(message):
 	if str(message.chat.id) in str(data_users):
 		cursor.execute(f"SELECT post FROM data_users WHERE id = {message.chat.id}")
 		post = cursor.fetchone()
-		if post == "Директор":
+
+		if str(post[0]) == "Директор":
 			await chat_director(message)
 		else:
 			await chat_accountant(message)
@@ -103,14 +104,14 @@ async def welcome(message):
 				item2 = InlineKeyboardButton("Бухгалтер", callback_data="accountant")
 				markup.add(item1, item2)
 				await bot.send_message(message.chat.id,
-									   "Приветствую!\nЯ - бот для небольшой компании, упрощающий жизнь бухгалтерам и их руководителям,\nпомогаю вести учет расходов и доходов.",
+									   "Приветствую!\nЯ - бот для небольшой компании, упрощающий жизнь бухгалтерам и их руководителям,\nпомогаю вести учет расходов и доходов компании.",
 									   reply_markup=markup)
 			else:
 				markup = InlineKeyboardMarkup(row_width=2)
 				item1 = InlineKeyboardButton("Бухгалтер", callback_data="accountant")
 				markup.add(item1)
 				await bot.send_message(message.chat.id,
-									   "Приветствую!\nЯ - бот для небольшой компании, упрощающий жизнь бухгалтерам и их руководителям,\nпомогаю вести учет расходов и доходов.",
+									   "Приветствую!\nЯ - бот для небольшой компании, упрощающий жизнь бухгалтерам и их руководителям,\nпомогаю вести учет расходов и доходов компании.",
 									   reply_markup=markup)
 		else:
 			await universal_handler(message)
@@ -137,11 +138,77 @@ async def add_expense(call):
 	await bot.send_message(call.message.chat.id, "Введите числовое значение операции (целое/дробное)")
 
 
+@bot.callback_query_handler(lambda call: call.data == "staff_manage")
+async def staff_manage(call):
+	cursor.execute("SELECT * FROM data_users WHERE post = 'Бухгалтер'")
+	data_users = cursor.fetchall()
+
+	async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
+		data["data_users"] = data_users
+		data["pointer"] = 0
+
+	if data_users:
+
+		user_id = data_users[0][0]
+		user_post = data_users[0][1]
+
+		markup = InlineKeyboardMarkup(row_width=3)
+		item1 = InlineKeyboardButton("<", callback_data="back")
+		item2 = InlineKeyboardButton("Подробнее", callback_data="parameters")
+		item3 = InlineKeyboardButton(">", callback_data="forward")
+		item4 = InlineKeyboardButton("Главное меню", callback_data="main")
+		markup.add(item1, item2, item3, item4)
+
+		await bot.send_message(call.message.chat.id, f"ID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}", reply_markup=markup)
+
+
+@bot.callback_query_handler(lambda call: call.data in ["main", "back", "forward", "parameters"])
+async def director_navigation(call):
+	if call.data == "main":
+		await chat_director(call.message)
+	elif call.data == "back":
+
+		async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
+			print("AAA")
+			data_users = data["data_users"]
+			pointer = data["pointer"]
+
+		if pointer:
+			user_id = data_users[pointer - 1][0]
+			user_post = data_users[pointer - 1][1]
+
+			markup = InlineKeyboardMarkup(row_width=3)
+			item1 = InlineKeyboardButton("<", callback_data="back")
+			item2 = InlineKeyboardButton("Подробнее", callback_data="parameters")
+			item3 = InlineKeyboardButton(">", callback_data="forward")
+			item4 = InlineKeyboardButton("Главное меню", callback_data="main")
+			markup.add(item1, item2, item3, item4)
+
+			await bot.send_message(call.message.chat.id,
+								   f"ID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
+								   reply_markup=markup)
+		else:
+			await bot.send_message(call.message.chat.id, "Вы в начале списка!")
+
+			user_id = data_users[pointer][0]
+			user_post = data_users[pointer][1]
+
+			markup = InlineKeyboardMarkup(row_width=3)
+			item2 = InlineKeyboardButton("Подробнее", callback_data="parameters")
+			item3 = InlineKeyboardButton(">", callback_data="forward")
+			item4 = InlineKeyboardButton("Главное меню", callback_data="main")
+			markup.add( item2, item3, item4)
+
+			await bot.send_message(call.message.chat.id,
+								   f"ID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
+								   reply_markup=markup)
+
+
+
 @bot.callback_query_handler(lambda call: call.data in ["director", "accountant"])
 async def callback(call):
 	cursor.execute("SELECT id FROM data_users")
 	data_users = cursor.fetchall()
-
 
 	if str(call.message.chat.id) not in str(data_users):
 		if call.data == "director":
@@ -155,40 +222,29 @@ async def callback(call):
 	await bot.answer_callback_query(call.id)
 
 
-@bot.message_handler(func=lambda message: message.text == "Управление персоналом")
-async def handle_personnel_management(message):
-	await bot.send_message(message.chat.id, "Раздел управления персоналом")
-
-
-@bot.message_handler(func=lambda message: message.text == "Просмотр отчётов")
-async def handle_reports(message):
-	await bot.send_message(message.chat.id, "Раздел просмотра отчетов")
-
-
-@bot.message_handler(func=lambda message: message.text == "Просмотр операций")
-async def handle_operations(message):
-	await bot.send_message(message.chat.id, "Раздел просмотра операций")
-
-
 async def chat_director(message):
 	cursor.execute(f"SELECT post FROM data_users WHERE id = {message.chat.id}")
 	check = cursor.fetchone()
+	print(check[0])
 	if check and check[0] == "Директор":
-		markup = ReplyKeyboardMarkup(resize_keyboard=True)
-		item1 = KeyboardButton("Управление персоналом")
-		item2 = KeyboardButton("Просмотр отчётов")
-		item3 = KeyboardButton("Просмотр операций")
+		markup = InlineKeyboardMarkup(row_width=1)
+		item1 = InlineKeyboardButton("Управление персоналом", callback_data="staff_manage")
+		item2 = InlineKeyboardButton("Просмотр отчётов", callback_data="view_reports")
+		item3 = InlineKeyboardButton("Просмотр операций", callback_data="view_operations")
 		markup.add(item1, item2, item3)
 		await bot.send_message(message.chat.id, "Выберите одну из функций ниже.", reply_markup=markup)
 
 
 async def chat_accountant(message):
-	markup = InlineKeyboardMarkup(row_width=2)
-	item1 = InlineKeyboardButton("Ввод операций", callback_data="add_operation")
-	item2 = InlineKeyboardButton("Редактирование операций", callback_data="edit_operation")
-	item3 = InlineKeyboardButton("Формирование отчётов", callback_data="create_report")
-	markup.add(item1, item2, item3)
-	await bot.send_message(message.chat.id, "Выберите одну из функций ниже.", reply_markup=markup)
+	cursor.execute(f"SELECT post FROM data_users WHERE id = {message.chat.id}")
+	check = cursor.fetchone()
+	if check and check[0] == "Бухгалтер":
+		markup = InlineKeyboardMarkup(row_width=1)
+		item1 = InlineKeyboardButton("Ввод операций", callback_data="add_operation")
+		item2 = InlineKeyboardButton("Редактирование операций", callback_data="edit_operation")
+		item3 = InlineKeyboardButton("Формирование отчётов", callback_data="create_report")
+		markup.add(item1, item2, item3)
+		await bot.send_message(message.chat.id, "Выберите одну из функций ниже.", reply_markup=markup)
 
 
 @bot.message_handler(func=lambda message: True)
