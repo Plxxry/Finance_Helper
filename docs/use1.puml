@@ -1,0 +1,23 @@
+@startuml
+left to right direction
+
+actor Руководитель
+actor Бухгалтер
+
+usecase Управление персоналом as U1
+usecase Просмотр отчетов as U2
+usecase Просмотр операций as U3
+usecase Ввод операций as U4
+usecase Редактирование операций as U5
+usecase Формирование отчетов as U6
+
+Руководитель --> U1
+Руководитель --> U2
+U2 --> U3
+
+Бухгалтер --> U4
+Бухгалтер --> U5
+U5 --> U3
+Бухгалтер --> U6
+
+@enduml
