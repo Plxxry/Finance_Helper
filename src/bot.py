@@ -34,10 +34,10 @@ async def add_category(message):
 	await bot.delete_state(message.from_user.id, message.chat.id)
 
 	if type_of_operation == "income":
-		cursor.execute("INSERT INTO incomes VALUES (id, NOW(), %s, %s)", (value, category))
+		cursor.execute("INSERT INTO incomes VALUES (writing_id, NOW(), %s, %s)", (value, category))
 		conn.commit()
 	else:
-		cursor.execute("INSERT INTO expenses VALUES (id, NOW(), %s, %s)", (value, category))
+		cursor.execute("INSERT INTO expenses VALUES (writing_id, NOW(), %s, %s)", (value, category))
 		conn.commit()
 
 	await chat_accountant(message)
@@ -79,17 +79,17 @@ async def enter_expense_value(message):
 ### РЕАКЦИЯ НА КОМАНДУ START
 @bot.message_handler(commands=['start'])
 async def welcome(message):
-	cursor.execute("SELECT id FROM data_users")
+	cursor.execute("SELECT staff_id FROM data_users")
 	data_users = cursor.fetchall()
 
 	cursor.execute("SELECT * FROM data_users")
 	count = cursor.fetchall()
 
-	cursor.execute("SELECT id FROM data_users WHERE post = 'Директор'")
+	cursor.execute("SELECT staff_id FROM data_users WHERE post = 'Директор'")
 	director = cursor.fetchall()
 
 	if str(message.chat.id) in str(data_users):
-		cursor.execute(f"SELECT post FROM data_users WHERE id = {message.chat.id}")
+		cursor.execute(f"SELECT post FROM data_users WHERE staff_id = {message.chat.id}")
 		post = cursor.fetchone()
 
 		if str(post[0]) == "Директор":
@@ -207,23 +207,23 @@ async def director_navigation(call):
 
 @bot.callback_query_handler(lambda call: call.data in ["director", "accountant"])
 async def callback(call):
-	cursor.execute("SELECT id FROM data_users")
+	cursor.execute("SELECT staff_id FROM data_users")
 	data_users = cursor.fetchall()
 
 	if str(call.message.chat.id) not in str(data_users):
 		if call.data == "director":
-			cursor.execute("INSERT INTO data_users (id, post) VALUES (%s, %s)", (call.message.chat.id, "Директор"))
+			cursor.execute("INSERT INTO data_users (staff_id, post) VALUES (%s, %s)", (call.message.chat.id, "Директор"))
 			conn.commit()
 			await chat_director(call.message)
 		else:
-			cursor.execute("INSERT INTO data_users (id, post) VALUES (%s, %s)", (call.message.chat.id, "Бухгалтер"))
+			cursor.execute("INSERT INTO data_users (staff_id, post) VALUES (%s, %s)", (call.message.chat.id, "Бухгалтер"))
 			conn.commit()
 			await chat_accountant(call.message)
 	await bot.answer_callback_query(call.id)
 
 
 async def chat_director(message):
-	cursor.execute(f"SELECT post FROM data_users WHERE id = {message.chat.id}")
+	cursor.execute(f"SELECT post FROM data_users WHERE staff_id = {message.chat.id}")
 	check = cursor.fetchone()
 	print(check[0])
 	if check and check[0] == "Директор":
