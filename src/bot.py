@@ -236,7 +236,7 @@ async def chat_director(message):
 
 
 async def chat_accountant(message):
-	cursor.execute(f"SELECT post FROM data_users WHERE id = {message.chat.id}")
+	cursor.execute(f"SELECT post FROM data_users WHERE staff_id = {message.chat.id}")
 	check = cursor.fetchone()
 	if check and check[0] == "Бухгалтер":
 		markup = InlineKeyboardMarkup(row_width=1)
