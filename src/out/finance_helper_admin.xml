@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+- phpMyAdmin XML Dump
+- version 5.2.1
+- https://www.phpmyadmin.net
+-
+- Хост: 127.0.0.1
+- Время создания: Ноя 18 2025 г., 15:18
+- Версия сервера: 10.4.28-MariaDB
+- Версия PHP: 8.2.4
+-->
+
+<pma_xml_export version="1.0" xmlns:pma="https://www.phpmyadmin.net/some_doc_url/">
+    <!--
+    - Structure schemas
+    -->
+    <pma:structure_schemas>
+        <pma:database name="finance_helper_admin" collation="utf8mb4_general_ci" charset="utf8mb4">
+            <pma:table name="data_users">
+                CREATE TABLE `data_users` (
+                  `staff_id` bigint(20) NOT NULL,
+                  `post` text NOT NULL,
+                  PRIMARY KEY (`staff_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+            </pma:table>
+            <pma:table name="expenses">
+                CREATE TABLE `expenses` (
+                  `writing_id` bigint(20) NOT NULL AUTO_INCREMENT,
+                  `time` datetime NOT NULL DEFAULT current_timestamp(),
+                  `value` bigint(20) NOT NULL,
+                  `category` text NOT NULL,
+                  PRIMARY KEY (`writing_id`)
+                ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+            </pma:table>
+            <pma:table name="incomes">
+                CREATE TABLE `incomes` (
+                  `writing_id` bigint(20) NOT NULL AUTO_INCREMENT,
+                  `time` datetime NOT NULL DEFAULT current_timestamp(),
+                  `value` double NOT NULL,
+                  `category` text NOT NULL,
+                  PRIMARY KEY (`writing_id`)
+                ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+            </pma:table>
+            <pma:table name="reports">
+                CREATE TABLE `reports` (
+                  `writing_id` int(11) NOT NULL AUTO_INCREMENT,
+                  `time` datetime NOT NULL DEFAULT current_timestamp(),
+                  `accountant_id` bigint(20) NOT NULL,
+                  `description` text NOT NULL,
+                  PRIMARY KEY (`writing_id`),
+                  KEY `accountant_id` (`accountant_id`)
+                ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+            </pma:table>
+        </pma:database>
+    </pma:structure_schemas>
+
+    <!--
+    - База данных: 'finance_helper_admin'
+    -->
+    <database name="finance_helper_admin">
+        <!-- Таблица data_users -->
+        <table name="data_users">
+            <column name="staff_id">1433721108</column>
+            <column name="post">Директор</column>
+        </table>
+        <table name="data_users">
+            <column name="staff_id">6440837631</column>
+            <column name="post">Бухгалтер</column>
+        </table>
+        <!-- Таблица expenses -->
+        <table name="expenses">
+            <column name="writing_id">1</column>
+            <column name="time">2025-11-18 17:17:53</column>
+            <column name="value">10</column>
+            <column name="category">потерял</column>
+        </table>
+        <!-- Таблица incomes -->
+        <table name="incomes">
+            <column name="writing_id">1</column>
+            <column name="time">2025-11-18 17:17:22</column>
+            <column name="value">120.4</column>
+            <column name="category">просто так пришли</column>
+        </table>
+        <table name="incomes">
+            <column name="writing_id">2</column>
+            <column name="time">2025-11-18 17:17:41</column>
+            <column name="value">10</column>
+            <column name="category">нашёл</column>
+        </table>
+        <!-- Таблица reports -->
+        <table name="reports">
+            <column name="writing_id">1</column>
+            <column name="time">2025-11-18 17:17:57</column>
+            <column name="accountant_id">6440837631</column>
+            <column name="description">Доход компании составил 120.4</column>
+        </table>
+    </database>
+</pma_xml_export>

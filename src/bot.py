@@ -22,6 +22,41 @@ class States(StatesGroup):
 bot.add_custom_filter(asyncio_filters.StateFilter(bot))
 
 
+@bot.callback_query_handler(lambda call: call.data == "create_report")
+async def create_report(call):
+	print("a")
+	cursor.execute("SELECT value FROM expenses")
+	expenses_value = sum(j for i in cursor.fetchall() for j in i)
+	print(expenses_value)
+	cursor.execute("SELECT value FROM incomes")
+	incomes_value = sum(j for i in cursor.fetchall() for j in i)
+	print(incomes_value)
+
+	cursor.execute("SELECT value, category FROM incomes")
+	temp = cursor.fetchall()
+	max_income = max([i for i in temp])[0]
+	max_income_cat = max([i for i in temp])[1]
+
+	cursor.execute("SELECT value, category FROM expenses")
+	temp = cursor.fetchall()
+	max_expense = max([i for i in temp])[0]
+	max_expense_cat = max([i for i in temp])[1]
+
+	if expenses_value > incomes_value:
+		cursor.execute("INSERT INTO reports VALUES (writing_id, NOW(), %s, %s)", (call.message.chat.id, f"Расход компании составил {expenses_value - incomes_value}"))
+		conn.commit()
+		await bot.send_message(call.message.chat.id, f"Отчёт сформирован!\n"
+													 f"На момент времени {cursor.execute("SELECT NOW()")} расход компании составил {expenses_value - incomes_value}\n"
+													 f"Максимальный расход был на: {max_expense_cat}\nи составил {max_expense}")
+	else:
+		cursor.execute("INSERT INTO reports VALUES (writing_id, NOW(), %s, %s)", (call.message.chat.id, f"Доход компании составил {incomes_value - expenses_value}"))
+		conn.commit()
+		await bot.send_message(call.message.chat.id, f"Отчёт сформирован!\n"
+													 f"На момент времени {cursor.execute("SELECT NOW() AS currentDate")} доход компании составил\n====\n{incomes_value - expenses_value}\n"
+													 f"====\nМаксимальный доход составил: {max_income_cat}\nв размере: {max_income}")
+
+	await chat_accountant(call.message)
+
 @bot.message_handler(state=States.CATEGORY)
 async def add_category(message):
 	category = str(message.text)

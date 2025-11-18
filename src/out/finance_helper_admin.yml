@@ -1,0 +1,33 @@
+%YAML 1.1
+---
+# finance_helper_admin.data_users
+-
+  staff_id: 1433721108
+  post: "Директор"
+-
+  staff_id: 6440837631
+  post: "Бухгалтер"
+# finance_helper_admin.expenses
+-
+  writing_id: 1
+  time: "2025-11-18 17:17:53"
+  value: 10
+  category: "потерял"
+# finance_helper_admin.incomes
+-
+  writing_id: 1
+  time: "2025-11-18 17:17:22"
+  value: 120.4
+  category: "просто так пришли"
+-
+  writing_id: 2
+  time: "2025-11-18 17:17:41"
+  value: 10
+  category: "нашёл"
+# finance_helper_admin.reports
+-
+  writing_id: 1
+  time: "2025-11-18 17:17:57"
+  accountant_id: 6440837631
+  description: "Доход компании составил 120.4"
+...
