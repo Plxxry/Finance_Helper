@@ -18,6 +18,8 @@ class States(StatesGroup):
 	WAITING_FOR_INCOME_VALUE = State()
 	WAITING_FOR_EXPENSE_VALUE = State()
 	CATEGORY = State()
+	STAFF_MANAGING = State()
+	REPORTS_MANAGING = State()
 
 
 bot.add_custom_filter(asyncio_filters.StateFilter(bot))
@@ -103,6 +105,7 @@ async def enter_expense_value(message):
 async def welcome(message):
 	cursor.execute("SELECT staff_id FROM data_users")
 	data_users = cursor.fetchall()
+	print(data_users, message.chat.id)
 
 	cursor.execute("SELECT * FROM data_users")
 	count = cursor.fetchall()
@@ -119,7 +122,7 @@ async def welcome(message):
 		else:
 			await chat_accountant(message)
 	else:
-		if len(count) < 2:
+		if len(count) < 4:
 			if not(director):
 				markup = InlineKeyboardMarkup(row_width=2)
 				item1 = InlineKeyboardButton("Руководитель", callback_data="director")
@@ -165,9 +168,11 @@ async def staff_manage(call):
 	cursor.execute("SELECT * FROM data_users WHERE post = 'Бухгалтер'")
 	data_users = cursor.fetchall()
 
+	await bot.set_state(call.from_user.id, States.STAFF_MANAGING, call.message.chat.id)
 	async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
 		data["data_users"] = data_users
 		data["pointer"] = 0
+		print(data_users)
 
 	if data_users:
 
@@ -175,56 +180,114 @@ async def staff_manage(call):
 		user_post = data_users[0][1]
 
 		markup = InlineKeyboardMarkup(row_width=3)
-		item1 = InlineKeyboardButton("<", callback_data="back")
+		#item1 = InlineKeyboardButton("<-", callback_data="back")
 		item2 = InlineKeyboardButton("Подробнее", callback_data="parameters")
-		item3 = InlineKeyboardButton(">", callback_data="forward")
+		item3 = InlineKeyboardButton("->", callback_data="forward")
 		item4 = InlineKeyboardButton("Главное меню", callback_data="main")
-		markup.add(item1, item2, item3, item4)
+		markup.add( item2, item3, item4)
 
-		await bot.send_message(call.message.chat.id, f"ID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}", reply_markup=markup)
+		await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
+									text=f"Номер карточки: 1/{len(data_users)}\nID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
+									reply_markup=markup)
 
 
-@bot.callback_query_handler(lambda call: call.data in ["main", "back", "forward", "parameters"])
+@bot.callback_query_handler(lambda call: call.data in ["main", "back", "forward", "parameters"], state=States.STAFF_MANAGING)
 async def director_navigation(call):
 	if call.data == "main":
+		await bot.delete_state(call.from_user.id, call.message.chat.id)
+		await bot.delete_message(call.message.chat.id, call.message.id)
 		await chat_director(call.message)
 	elif call.data == "back":
 
 		async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
-			print("AAA")
-			data_users = data["data_users"]
+			print("AAA х")
+			data_users = data['data_users']
+			print(data_users)
+			print("BBB")
 			pointer = data["pointer"]
 
 		if pointer:
-			user_id = data_users[pointer - 1][0]
-			user_post = data_users[pointer - 1][1]
+			pointer -= 1
+			print('as')
+			user_id = data_users[pointer][0]
+			user_post = data_users[pointer][1]
 
 			markup = InlineKeyboardMarkup(row_width=3)
-			item1 = InlineKeyboardButton("<", callback_data="back")
+			item1 = InlineKeyboardButton("<-", callback_data="back")
 			item2 = InlineKeyboardButton("Подробнее", callback_data="parameters")
-			item3 = InlineKeyboardButton(">", callback_data="forward")
+			item3 = InlineKeyboardButton("->", callback_data="forward")
 			item4 = InlineKeyboardButton("Главное меню", callback_data="main")
 			markup.add(item1, item2, item3, item4)
 
-			await bot.send_message(call.message.chat.id,
-								   f"ID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
+			await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
+								   text=f"Номер карточки: {pointer + 1}/{len(data_users)}\nID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
 								   reply_markup=markup)
+
+			async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
+				data["pointer"] = pointer
+
 		else:
-			await bot.send_message(call.message.chat.id, "Вы в начале списка!")
 
 			user_id = data_users[pointer][0]
 			user_post = data_users[pointer][1]
 
 			markup = InlineKeyboardMarkup(row_width=3)
 			item2 = InlineKeyboardButton("Подробнее", callback_data="parameters")
-			item3 = InlineKeyboardButton(">", callback_data="forward")
+			item3 = InlineKeyboardButton("->", callback_data="forward")
 			item4 = InlineKeyboardButton("Главное меню", callback_data="main")
 			markup.add( item2, item3, item4)
 
-			await bot.send_message(call.message.chat.id,
+			await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
+										text=f"Вы в начале списка!\n\nНомер карточки: {pointer + 1}/{len(data_users)}\nID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
+										reply_markup=markup)
+			"""await bot.send_message(call.message.chat.id,
 								   f"ID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
-								   reply_markup=markup)
+								   reply_markup=markup)"""
 
+	elif call.data == "forward":
+
+		async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
+			print("AAA х")
+			data_users = data['data_users']
+			print(data_users)
+			print("BBB")
+			pointer = data["pointer"]
+
+		if pointer < len(data_users) - 1:
+			print("asdfd")
+			pointer += 1
+			user_id = data_users[pointer][0]
+			user_post = data_users[pointer][1]
+
+			markup = InlineKeyboardMarkup(row_width=3)
+			item1 = InlineKeyboardButton("<-", callback_data="back")
+			item2 = InlineKeyboardButton("Подробнее", callback_data="parameters")
+			item3 = InlineKeyboardButton("->", callback_data="forward")
+			item4 = InlineKeyboardButton("Главное меню", callback_data="main")
+			markup.add(item1, item2, item3, item4)
+
+			await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
+										text=f"Номер карточки: {pointer + 1}/{len(data_users)}\nID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
+										reply_markup=markup)
+
+			async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
+				data["pointer"] = pointer
+
+			print(data["pointer"])
+		else:
+
+			user_id = data_users[pointer][0]
+			user_post = data_users[pointer][1]
+
+			markup = InlineKeyboardMarkup(row_width=3)
+			item1 = InlineKeyboardButton("<-", callback_data="back")
+			item2 = InlineKeyboardButton("Подробнее", callback_data="parameters")
+			item4 = InlineKeyboardButton("Главное меню", callback_data="main")
+			markup.add(item1, item2, item4)
+
+			await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
+										text=f"Вы в конце списка!\nНомер карточки: {pointer + 1}/{len(data_users)}\nID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
+										reply_markup=markup)
 
 
 @bot.callback_query_handler(lambda call: call.data in ["director", "accountant"])
@@ -288,3 +351,5 @@ async def universal_handler(message):
 
 if __name__ == "__main__":
 	asyncio.run(bot.polling())
+else:
+	conn.close()
