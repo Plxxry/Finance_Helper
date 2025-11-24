@@ -4,11 +4,12 @@ from telebot.asyncio_handler_backends import State, StatesGroup
 from telebot import asyncio_filters
 import config
 import asyncio
-import pymysql
+import pymysql, sqlite3
 from telebot.types import InlineKeyboardMarkup, ReplyKeyboardMarkup, InlineKeyboardButton, KeyboardButton
 
 password = "Jbc[L(AXneWTJ!@Z"
-conn = pymysql.connect(host='localhost', user='finance_helper_admin', password=password, database='finance_helper_admin')
+#conn = pymysql.connect(host='localhost', user='finance_helper_admin', password=password, database='finance_helper_admin')
+conn = sqlite3.connect('database/finance_helper_admin.db')
 cursor = conn.cursor()
 bot = AsyncTeleBot(config.token, state_storage=StateMemoryStorage())
 
@@ -24,36 +25,22 @@ bot.add_custom_filter(asyncio_filters.StateFilter(bot))
 
 @bot.callback_query_handler(lambda call: call.data == "create_report")
 async def create_report(call):
-	print("a")
 	cursor.execute("SELECT value FROM expenses")
 	expenses_value = sum(j for i in cursor.fetchall() for j in i)
-	print(expenses_value)
+
 	cursor.execute("SELECT value FROM incomes")
 	incomes_value = sum(j for i in cursor.fetchall() for j in i)
-	print(incomes_value)
-
-	cursor.execute("SELECT value, category FROM incomes")
-	temp = cursor.fetchall()
-	max_income = max([i for i in temp])[0]
-	max_income_cat = max([i for i in temp])[1]
-
-	cursor.execute("SELECT value, category FROM expenses")
-	temp = cursor.fetchall()
-	max_expense = max([i for i in temp])[0]
-	max_expense_cat = max([i for i in temp])[1]
 
 	if expenses_value > incomes_value:
-		cursor.execute("INSERT INTO reports VALUES (writing_id, NOW(), %s, %s)", (call.message.chat.id, f"Расход компании составил {expenses_value - incomes_value}"))
+		cursor.execute("INSERT INTO reports VALUES (NULL, CURRENT_TIMESTAMP, ?, ?)", (call.message.chat.id, f"Расход компании составил {expenses_value - incomes_value}"))
 		conn.commit()
 		await bot.send_message(call.message.chat.id, f"Отчёт сформирован!\n"
-													 f"На момент времени {cursor.execute("SELECT NOW()")} расход компании составил {expenses_value - incomes_value}\n"
-													 f"Максимальный расход был на: {max_expense_cat}\nи составил {max_expense}")
+													 f"На момент времени {cursor.execute("SELECT CURRENT_TIMESTAMP").fetchone()[0]} расход компании составил {expenses_value - incomes_value}")
 	else:
-		cursor.execute("INSERT INTO reports VALUES (writing_id, NOW(), %s, %s)", (call.message.chat.id, f"Доход компании составил {incomes_value - expenses_value}"))
+		cursor.execute("INSERT INTO reports VALUES (NULL, CURRENT_TIMESTAMP, ?, ?)", (call.message.chat.id, f"Доход компании составил {incomes_value - expenses_value}"))
 		conn.commit()
 		await bot.send_message(call.message.chat.id, f"Отчёт сформирован!\n"
-													 f"На момент времени {cursor.execute("SELECT NOW() AS currentDate")} доход компании составил\n====\n{incomes_value - expenses_value}\n"
-													 f"====\nМаксимальный доход составил: {max_income_cat}\nв размере: {max_income}")
+													 f"На момент времени {cursor.execute("SELECT CURRENT_TIMESTAMP").fetchone()[0]} доход компании составил {incomes_value - expenses_value}")
 
 	await chat_accountant(call.message)
 
@@ -69,10 +56,10 @@ async def add_category(message):
 	await bot.delete_state(message.from_user.id, message.chat.id)
 
 	if type_of_operation == "income":
-		cursor.execute("INSERT INTO incomes VALUES (writing_id, NOW(), %s, %s)", (value, category))
+		cursor.execute("INSERT INTO incomes VALUES (NULL, CURRENT_TIMESTAMP, ?, ?)", (value, category))
 		conn.commit()
 	else:
-		cursor.execute("INSERT INTO expenses VALUES (writing_id, NOW(), %s, %s)", (value, category))
+		cursor.execute("INSERT INTO expenses VALUES (NULL, CURRENT_TIMESTAMP, ?, ?)", (value, category))
 		conn.commit()
 
 	await chat_accountant(message)
@@ -242,16 +229,17 @@ async def director_navigation(call):
 
 @bot.callback_query_handler(lambda call: call.data in ["director", "accountant"])
 async def callback(call):
+	print("aaaaaa")
 	cursor.execute("SELECT staff_id FROM data_users")
 	data_users = cursor.fetchall()
 
 	if str(call.message.chat.id) not in str(data_users):
 		if call.data == "director":
-			cursor.execute("INSERT INTO data_users (staff_id, post) VALUES (%s, %s)", (call.message.chat.id, "Директор"))
+			cursor.execute("INSERT INTO data_users (staff_id, post) VALUES (?, ?)", (call.message.chat.id, "Директор"))
 			conn.commit()
 			await chat_director(call.message)
 		else:
-			cursor.execute("INSERT INTO data_users (staff_id, post) VALUES (%s, %s)", (call.message.chat.id, "Бухгалтер"))
+			cursor.execute("INSERT INTO data_users (staff_id, post) VALUES (?, ?)", (call.message.chat.id, "Бухгалтер"))
 			conn.commit()
 			await chat_accountant(call.message)
 	await bot.answer_callback_query(call.id)
