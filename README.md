@@ -15,10 +15,9 @@
 <img width="439" height="266" alt="image" src="https://github.com/user-attachments/assets/e8f76030-ffcf-4698-b2ad-535472de4ffa" />
 
 ## 5. Как использовать:
-- **установите XAMPP** и зайдите в D:\xampp\mysql\data (или C:\xampp\mysql\data)
-- скопируйте туда папку **database** (находится в src репозитория) и переименуйте её в **_finance_helper_admin_**
-- запустите **Apache** и **MySQL**
-- **Готово!** Можно запускать бота
+- **установите** библиотеки **telebot, asyncio, sqlite3, pyTelegramBotAPI**
+- скачайте все файлы с репозитория **в одну папку**
+- запустите **bot.py**
 ---
 # Важно!
 Все файлы (кроме базы данных) должны лежать в одной папке!
