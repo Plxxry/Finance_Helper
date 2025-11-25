@@ -1,3 +1,4 @@
+from math import lgamma
 from telebot.async_telebot import AsyncTeleBot
 from telebot.asyncio_storage import StateMemoryStorage
 from telebot.asyncio_handler_backends import State, StatesGroup
@@ -16,14 +17,271 @@ bot = AsyncTeleBot(config.token, state_storage=StateMemoryStorage())
 
 class States(StatesGroup):
 	WAITING_FOR_INCOME_VALUE = State()
+
+	WAITING_FOR_EDITED_VALUE = State()
+
 	WAITING_FOR_EXPENSE_VALUE = State()
+
 	CATEGORY = State()
+
+	NEW_CATEGORY = State()
+
 	STAFF_MANAGING = State()
 	REPORTS_MANAGING = State()
+	OPERATIONS_MANAGING = State()
 
 
 bot.add_custom_filter(asyncio_filters.StateFilter(bot))
 
+
+@bot.callback_query_handler(lambda call: call.data == "edit_operation")
+async def type_of_operation(call):
+
+	markup = InlineKeyboardMarkup(row_width=3)
+	item1 = InlineKeyboardButton("Доход", callback_data="edit_income")
+	item2 = InlineKeyboardButton("Расход", callback_data="edit_expense")
+	item3 = InlineKeyboardButton("Главное меню", callback_data="return_to_main")
+	markup.add(item1, item2, item3)
+	await bot.edit_message_text(f"Выберите тип операции", reply_markup=markup, chat_id=call.message.chat.id, message_id=call.message.id)
+	await bot.set_state(call.from_user.id, States.OPERATIONS_MANAGING, call.message.chat.id)
+
+	async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as editing_data:
+		editing_data["pointer"] = 0
+
+
+@bot.callback_query_handler(lambda call: call.data in ["edit_income", "edit_expense", "return_to_main"], state=States.OPERATIONS_MANAGING)
+async def operations_navigate(call):
+
+	if call.data == "edit_income":
+
+		async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as editing_data:
+			pointer = editing_data["pointer"]
+			editing_data["table_name"] = "incomes"
+			editing_data["type_of_operations"] = "Доход"
+
+		cursor.execute("SELECT * FROM incomes")
+		data_incomes = cursor.fetchall()
+
+		if data_incomes:
+			markup = InlineKeyboardMarkup(row_width=3)
+			item1 = InlineKeyboardButton("Удалить запись", callback_data="delete")
+			item2 = InlineKeyboardButton("Изменить значение", callback_data="edit_value")
+			item3 = InlineKeyboardButton("Изменить категорию", callback_data="edit_category")
+			item4 = InlineKeyboardButton("->", callback_data="next")
+			item5 = InlineKeyboardButton("Главное меню", callback_data="go_main")
+			markup.add(item1, item2, item3, item4, item5)
+			await bot.edit_message_text(f"Номер карточки: 1/{len(data_incomes)}\n\n"
+										f"Время операции - {data_incomes[pointer][1]}\n"
+										f"Значение - {data_incomes[pointer][2]}\n"
+										f"Тип операции - Доход\n"
+										f"Категория - {data_incomes[pointer][3]}\n\n"
+										f"Выберите действие", reply_markup=markup, chat_id=call.message.chat.id,
+										message_id=call.message.id)
+		else:
+			await bot.send_message(call.message.chat.id, "Список пуст!")
+			await chat_accountant(call.message)
+
+	elif call.data == "edit_expense":
+
+		async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as editing_data:
+			pointer = editing_data["pointer"]
+			editing_data["table_name"] = "expenses"
+			editing_data['type_of_operations'] = "Расход"
+
+		cursor.execute("SELECT * FROM expenses")
+		data_expenses = cursor.fetchall()
+
+		if data_expenses:
+			markup = InlineKeyboardMarkup(row_width=3)
+			item1 = InlineKeyboardButton("Удалить запись", callback_data="delete")
+			item2 = InlineKeyboardButton("Изменить значение", callback_data="edit_value")
+			item3 = InlineKeyboardButton("Изменить категорию", callback_data="edit_category")
+			item4 = InlineKeyboardButton("->", callback_data="next")
+			item5 = InlineKeyboardButton("Главное меню", callback_data="go_main")
+			markup.add(item1, item2, item3, item4, item5)
+			await bot.edit_message_text(f"Номер карточки: 1/{len(data_expenses)}\n\n"
+										f"Время операции - {data_expenses[pointer][1]}\n"
+										f"Значение - {data_expenses[pointer][2]}\n"
+										f"Тип операции - Доход\n"
+										f"Категория - {data_expenses[pointer][3]}\n\n"
+										f"Выберите действие", reply_markup=markup, chat_id=call.message.chat.id,
+										message_id=call.message.id)
+		else:
+			await bot.send_message(call.message.chat.id, "Список пуст!")
+			await chat_accountant(call.message)
+
+	elif call.data == "return_to_main":
+		await bot.delete_state(call.from_user.id, call.message.chat.id)
+		await bot.delete_message(call.message.chat.id, call.message.id)
+		await chat_accountant(call.message)
+
+
+@bot.callback_query_handler(lambda call: call.data in ["delete", "edit_value", "edit_category", "next", "prev"], state=States.OPERATIONS_MANAGING)
+async def manage_operations(call):
+
+	async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
+		type = data["table_name"]
+		pointer = data["pointer"]
+
+
+	cursor.execute(f"SELECT * FROM {type}")
+	data_operations = cursor.fetchall()
+	current_operation = data_operations[0]
+
+
+	async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
+		data["id"] = current_operation[0]
+
+
+	if call.data == "delete":
+		cursor.execute(f"DELETE FROM {type} WHERE writing_id = {current_operation[0]}")
+		conn.commit()
+
+		await bot.edit_message_text(f"Запись успешно удалена!", chat_id=call.message.chat.id, message_id=call.message.id)
+		await chat_accountant(call.message)
+
+	elif call.data == "edit_value":
+		await bot.set_state(call.from_user.id, States.WAITING_FOR_EDITED_VALUE, call.message.chat.id)
+		await bot.edit_message_text("Пожалуйста, введите новое значение", message_id=call.message.id, chat_id=call.message.chat.id)
+
+	elif call.data == "edit_category":
+		await bot.edit_message_text("Пожалуйста, введите новую категорию", message_id=call.message.id, chat_id=call.message.chat.id)
+		await bot.set_state(call.from_user.id, States.NEW_CATEGORY, call.message.chat.id)
+
+	elif call.data == "next":
+		if pointer < len(data_operations) - 1:
+
+			pointer += 1
+
+			markup = InlineKeyboardMarkup(row_width=3)
+			item0 = InlineKeyboardButton("<-", callback_data="prev")
+			item1 = InlineKeyboardButton("Удалить запись", callback_data="delete")
+			item2 = InlineKeyboardButton("Изменить значение", callback_data="edit_value")
+			item3 = InlineKeyboardButton("Изменить категорию", callback_data="edit_category")
+			item4 = InlineKeyboardButton("->", callback_data="next")
+			item5 = InlineKeyboardButton("Главное меню", callback_data="go_main")
+			markup.add(item0, item1, item2, item3, item4, item5)
+			await bot.edit_message_text(f"Номер карточки: {pointer + 1}/{len(data_operations)}\n\n"
+										f"Время операции - {data_operations[pointer][1]}\n"
+										f"Значение - {data_operations[pointer][2]}\n"
+										f"Тип операции - {data['type_of_operations']}\n"
+										f"Категория - {data_operations[pointer][3]}\n\n"
+										f"Выберите действие", reply_markup=markup, chat_id=call.message.chat.id,
+										message_id=call.message.id)
+
+			async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
+				data["pointer"] = pointer
+				data['id'] = current_operation[0]
+
+
+		else:
+			markup = InlineKeyboardMarkup(row_width=3)
+			item0 = InlineKeyboardButton("<-", callback_data="prev")
+			item1 = InlineKeyboardButton("Удалить запись", callback_data="delete")
+			item2 = InlineKeyboardButton("Изменить значение", callback_data="edit_value")
+			item3 = InlineKeyboardButton("Изменить категорию", callback_data="edit_category")
+			item4 = InlineKeyboardButton("->", callback_data="next")
+			item5 = InlineKeyboardButton("Главное меню", callback_data="go_main")
+			markup.add(item0, item1, item2, item3, item5)
+			await bot.edit_message_text(f"Вы в конце списка!\n"
+										f"Номер карточки: {pointer + 1}/{len(data_operations)}\n\n"
+										f"Время операции - {data_operations[pointer][1]}\n"
+										f"Значение - {data_operations[pointer][2]}\n"
+										f"Тип операции - {data['type_of_operations']}\n"
+										f"Категория - {data_operations[pointer][3]}\n\n"
+										f"Выберите действие", reply_markup=markup, chat_id=call.message.chat.id,
+										message_id=call.message.id)
+
+
+	elif call.data == "prev":
+		if pointer > 0:
+			pointer -= 1
+
+			markup = InlineKeyboardMarkup(row_width=3)
+			item0 = InlineKeyboardButton("<-", callback_data="prev")
+			item1 = InlineKeyboardButton("Удалить запись", callback_data="delete")
+			item2 = InlineKeyboardButton("Изменить значение", callback_data="edit_value")
+			item3 = InlineKeyboardButton("Изменить категорию", callback_data="edit_category")
+			item4 = InlineKeyboardButton("->", callback_data="next")
+			item5 = InlineKeyboardButton("Главное меню", callback_data="go_main")
+			markup.add(item0, item1, item2, item3, item4, item5)
+			await bot.edit_message_text(f"Номер карточки: {pointer + 1}/{len(data_operations)}\n\n"
+										f"Время операции - {data_operations[pointer][1]}\n"
+										f"Значение - {data_operations[pointer][2]}\n"
+										f"Тип операции - {data['type_of_operations']}\n"
+										f"Категория - {data_operations[pointer][3]}\n\n"
+										f"Выберите действие", reply_markup=markup, chat_id=call.message.chat.id,
+										message_id=call.message.id)
+
+			async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
+				data["pointer"] = pointer
+				data['id'] = current_operation[0]
+		else:
+			markup = InlineKeyboardMarkup(row_width=3)
+			item0 = InlineKeyboardButton("<-", callback_data="prev")
+			item1 = InlineKeyboardButton("Удалить запись", callback_data="delete")
+			item2 = InlineKeyboardButton("Изменить значение", callback_data="edit_value")
+			item3 = InlineKeyboardButton("Изменить категорию", callback_data="edit_category")
+			item4 = InlineKeyboardButton("->", callback_data="next")
+			item5 = InlineKeyboardButton("Главное меню", callback_data="go_main")
+			markup.add(item1, item2, item3, item4, item5)
+			await bot.edit_message_text(f"Вы в начале списка!\n"
+										f"Номер карточки: {pointer + 1}/{len(data_operations)}\n\n"
+										f"Время операции - {data_operations[pointer][1]}\n"
+										f"Значение - {data_operations[pointer][2]}\n"
+										f"Тип операции - {data['type_of_operations']}\n"
+										f"Категория - {data_operations[pointer][3]}\n\n"
+										f"Выберите действие", reply_markup=markup, chat_id=call.message.chat.id,
+										message_id=call.message.id)
+
+	elif call.data == "go_main":
+		await bot.delete_state(call.from_user.id, call.message.chat.id)
+		await bot.delete_message(call.message.chat.id, call.message.id)
+		await chat_accountant(call.message)
+
+
+
+@bot.message_handler(state=States.WAITING_FOR_EDITED_VALUE)
+async def enter_new_value(message):
+
+	async with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+		type = data["type_of_operations"]
+		table_name = data["table_name"]
+		pointer = data["pointer"]
+		wid = data["id"]
+
+	try:
+		new_value = float(message.text)
+
+
+		cursor.execute(f"UPDATE {table_name} SET value = {new_value} WHERE writing_id = {wid}")
+		conn.commit()
+
+		await bot.send_message(message.chat.id, "Новые данные успешно добавлены!")
+		await bot.delete_state(message.from_user.id, message.chat.id)
+		await chat_accountant(message)
+
+	except ValueError:
+		await bot.edit_message_text("Ошибка! Введите числовое значение", message.chat.id, message.id)
+
+
+@bot.message_handler(state=States.NEW_CATEGORY)
+async def update_category(message):
+
+	async with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+		type = data["type_of_operations"]
+		table_name = data["table_name"]
+		pointer = data["pointer"]
+		wid = data["id"]
+
+	new_category = str(message.text)
+
+	cursor.execute(f"UPDATE {table_name} SET category = '{new_category}' WHERE writing_id = {wid}")
+	conn.commit()
+
+	await bot.send_message(message.chat.id, "Новые данные успешно добавлены!")
+	await bot.delete_state(message.from_user.id, message.chat.id)
+	await chat_accountant(message)
 
 @bot.callback_query_handler(lambda call: call.data == "create_report")
 async def create_report(call):
