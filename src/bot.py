@@ -116,7 +116,7 @@ async def operations_navigate(call):
 		await chat_accountant(call.message)
 
 
-@bot.callback_query_handler(lambda call: call.data in ["delete", "edit_value", "edit_category", "next", "prev"], state=States.OPERATIONS_MANAGING)
+@bot.callback_query_handler(lambda call: call.data in ["delete", "edit_value", "edit_category", "next", "prev", "go_main"], state=States.OPERATIONS_MANAGING)
 async def manage_operations(call):
 
 	async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
@@ -126,7 +126,7 @@ async def manage_operations(call):
 
 	cursor.execute(f"SELECT * FROM {type}")
 	data_operations = cursor.fetchall()
-	current_operation = data_operations[0]
+	current_operation = data_operations[pointer]
 
 
 	async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
