@@ -31,10 +31,178 @@ class States(StatesGroup):
 
 	CONFIRM_DELETE = State()
 
+	VIEW_OPERATIONS = State()
+
 
 
 bot.add_custom_filter(asyncio_filters.StateFilter(bot))
 
+@bot.callback_query_handler(lambda call: call.data == "view_operations")
+async def get_operations_type(call):
+	markup = InlineKeyboardMarkup(row_width=2)
+	item1 = InlineKeyboardButton("Доход", callback_data="income")
+	item2 = InlineKeyboardButton("Расход", callback_data="expense")
+	markup.add(item1, item2)
+
+	await bot.edit_message_text("Выберите характер операций", chat_id=call.message.chat.id, message_id=call.message.id, reply_markup=markup)
+
+
+@bot.callback_query_handler(lambda call: call.data in ["income", "expense"])
+async def view_operations(call):
+	pointer = 0
+
+	if call.data == "income":
+		cursor.execute("SELECT * FROM incomes")
+		data = cursor.fetchall()
+
+		id = data[pointer][0]
+		time = data[pointer][1]
+		value = data[pointer][2]
+		desc = data[pointer][3]
+
+
+		markup = InlineKeyboardMarkup(row_width=2)
+		item1 = InlineKeyboardButton("Главное меню", callback_data="main")
+		item2 = InlineKeyboardButton("->", callback_data="next")
+		markup.add(item1, item2)
+
+		await bot.edit_message_text(f"Номер карточки: {pointer + 1}/{len(data)}\n\n"
+									f"Время операции - {time}\n"
+									f"Значение - {value}\n"
+									f"Категория - {desc}", chat_id=call.message.chat.id, message_id=call.message.id, reply_markup=markup)
+
+		await bot.set_state(call.from_user.id, States.VIEW_OPERATIONS, call.message.chat.id)
+
+		async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as op_data:
+			op_data['pointer'] = pointer
+			op_data['id'] = id
+			op_data['data'] = data
+
+	elif call.data == "expense":
+		cursor.execute("SELECT * FROM expenses")
+		data = cursor.fetchall()
+
+		id = data[pointer][0]
+		time = data[pointer][1]
+		value = data[pointer][2]
+		desc = data[pointer][3]
+
+		markup = InlineKeyboardMarkup(row_width=2)
+		item1 = InlineKeyboardButton("Главное меню", callback_data="main")
+		item2 = InlineKeyboardButton("->", callback_data="next")
+		markup.add(item1, item2)
+
+		await bot.edit_message_text(f"Номер карточки: {pointer + 1}/{len(data)}\n\n"
+									f"Время операции - {time}\n"
+									f"Значение - {value}\n"
+									f"Категория - {desc}", chat_id=call.message.chat.id, message_id=call.message.id, reply_markup=markup)
+
+		await bot.set_state(call.from_user.id, States.VIEW_OPERATIONS, call.message.chat.id)
+
+		async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as op_data:
+			op_data['pointer'] = pointer
+			op_data['id'] = id
+			op_data['data'] = data
+
+
+@bot.callback_query_handler(lambda call: call.data in ["main", "next", "prev"], state=States.VIEW_OPERATIONS)
+async def operations_navigate(call):
+
+	async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as op_data:
+		pointer = op_data['pointer']
+		id = op_data['id']
+		data = op_data['data']
+
+	current_operation = data[pointer]
+
+	if call.data == "main":
+		await bot.delete_state(call.from_user.id, call.message.chat.id)
+		await bot.delete_message(call.message.chat.id, call.message.id)
+		await chat_director(call.message)
+
+	elif call.data == "next":
+		if pointer < len(data) - 1:
+			pointer += 1
+
+			id = current_operation[0]
+			time = current_operation[1]
+			value = current_operation[2]
+			desc = current_operation[3]
+
+			markup = InlineKeyboardMarkup(row_width=2)
+			item0 = InlineKeyboardButton("<-", callback_data="prev")
+			item1 = InlineKeyboardButton("Главное меню", callback_data="main")
+			item2 = InlineKeyboardButton("->", callback_data="next")
+			markup.add(item0, item1, item2)
+
+			await bot.edit_message_text(f"Номер карточки: {pointer + 1}/{len(data)}\n\n"
+										f"Время операции - {time}\n"
+										f"Значение - {value}\n"
+										f"Категория - {desc}", chat_id=call.message.chat.id, message_id=call.message.id, reply_markup=markup)
+
+			async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as op_data:
+				op_data['pointer'] = pointer
+				op_data['id'] = id
+				op_data['data'] = data
+
+		else:
+			id = current_operation[0]
+			time = current_operation[1]
+			value = current_operation[2]
+			desc = current_operation[3]
+
+			markup = InlineKeyboardMarkup(row_width=2)
+			item0 = InlineKeyboardButton("<-", callback_data="prev")
+			item1 = InlineKeyboardButton("Главное меню", callback_data="main")
+			item2 = InlineKeyboardButton("->", callback_data="next")
+			markup.add(item0, item1)
+
+			await bot.edit_message_text(f"Вы в конце списка!\nНомер карточки: {pointer + 1}/{len(data)}\n\n"
+										f"Время операции - {time}\n"
+										f"Значение - {value}\n"
+										f"Категория - {desc}", chat_id=call.message.chat.id, message_id=call.message.id, reply_markup=markup)
+
+	elif call.data == "prev":
+		if pointer > 0:
+			pointer -= 1
+
+			id = current_operation[0]
+			time = current_operation[1]
+			value = current_operation[2]
+			desc = current_operation[3]
+
+			markup = InlineKeyboardMarkup(row_width=2)
+			item0 = InlineKeyboardButton("<-", callback_data="prev")
+			item1 = InlineKeyboardButton("Главное меню", callback_data="main")
+			item2 = InlineKeyboardButton("->", callback_data="next")
+			markup.add(item0, item1, item2)
+
+			await bot.edit_message_text(f"Номер карточки: {pointer + 1}/{len(data)}\n\n"
+										f"Время операции - {time}\n"
+										f"Значение - {value}\n"
+										f"Категория - {desc}", chat_id=call.message.chat.id, message_id=call.message.id, reply_markup=markup)
+
+			async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as op_data:
+				op_data['pointer'] = pointer
+				op_data['id'] = id
+				op_data['data'] = data
+
+		else:
+			id = current_operation[0]
+			time = current_operation[1]
+			value = current_operation[2]
+			desc = current_operation[3]
+
+			markup = InlineKeyboardMarkup(row_width=2)
+			item0 = InlineKeyboardButton("<-", callback_data="prev")
+			item1 = InlineKeyboardButton("Главное меню", callback_data="main")
+			item2 = InlineKeyboardButton("->", callback_data="next")
+			markup.add(item1, item2)
+
+			await bot.edit_message_text(f"Вы в начале списка!\nНомер карточки: {pointer + 1}/{len(data)}\n\n"
+										f"Время операции - {time}\n"
+										f"Значение - {value}\n"
+										f"Категория - {desc}", chat_id=call.message.chat.id, message_id=call.message.id, reply_markup=markup)
 
 
 @bot.callback_query_handler(lambda call: call.data == "view_reports")
@@ -46,6 +214,7 @@ async def reports(call):
 	if data:
 		pointer = 0
 		id = data[pointer][0]
+		time = data[pointer][1]
 		accountant_id = data[pointer][2]
 		desc = data[pointer][3]
 
@@ -57,6 +226,7 @@ async def reports(call):
 
 		await bot.edit_message_text(f"Номер карточки: {pointer + 1}/{len(data)}\n\n"
 									f"Автор отчёта - {accountant_id}\n"
+									f"Время создания отчёта - {time}\n"
 									f"Описание: {desc}", chat_id=call.message.chat.id, message_id=call.message.id, reply_markup=markup)
 
 		await bot.set_state(call.from_user.id, States.REPORTS_MANAGING, call.message.chat.id)
@@ -88,7 +258,7 @@ async def reports_managing(call):
 
 			await bot.edit_message_text(f"Номер карточки: {pointer + 1}/{len(data)}\n\n"
 										f"Автор отчёта - {data[pointer][2]}\n"
-										f"Время создания отчёта - {data[pointer][1]}"
+										f"Время создания отчёта - {data[pointer][1]}\n"
 										f"Описание: {data[pointer][3]}", chat_id=call.message.chat.id, message_id=call.message.id,
 										reply_markup=markup)
 
@@ -106,7 +276,7 @@ async def reports_managing(call):
 			await bot.edit_message_text(f"Вы в начале списка!\n"
 										f"Номер карточки: {pointer + 1}/{len(data)}\n\n"
 										f"Автор отчёта - {data[pointer][2]}\n"
-										f"Время создания отчёта - {data[pointer][1]}"
+										f"Время создания отчёта - {data[pointer][1]}\n"
 										f"Описание: {data[pointer][3]}", chat_id=call.message.chat.id,
 										message_id=call.message.id,
 										reply_markup=markup)
@@ -122,7 +292,7 @@ async def reports_managing(call):
 
 			await bot.edit_message_text(f"Номер карточки: {pointer + 1}/{len(data)}\n\n"
 										f"Автор отчёта - {data[pointer][2]}\n"
-										f"Время создания отчёта - {data[pointer][1]}"
+										f"Время создания отчёта - {data[pointer][1]}\n"
 										f"Описание: {data[pointer][3]}", chat_id=call.message.chat.id, message_id=call.message.id,
 										reply_markup=markup)
 
@@ -140,7 +310,7 @@ async def reports_managing(call):
 			await bot.edit_message_text(f"Вы в конце списка!\n"
 										f"Номер карточки: {pointer + 1}/{len(data)}\n\n"
 										f"Автор отчёта - {data[pointer][2]}\n"
-										f"Время создания отчёта - {data[pointer][1]}"
+										f"Время создания отчёта - {data[pointer][1]}\n"
 										f"Описание: {data[pointer][3]}", chat_id=call.message.chat.id,
 										message_id=call.message.id,
 										reply_markup=markup)
@@ -582,111 +752,115 @@ async def staff_manage(call):
 		await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
 									text=f"Номер карточки: 1/{len(data_users)}\nID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
 									reply_markup=markup)
-
+	else:
+		await bot.edit_message_text("Список пуст!", call.message.chat.id, call.message.id)
+		await chat_director(call.message)
 
 @bot.callback_query_handler(lambda call: call.data in ["main", "back", "forward", "delete_user"], state=States.STAFF_MANAGING)
 async def director_navigation(call):
-	if call.data == "main":
+	async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
+		data_users = data['data_users']
+		pointer = data["pointer"]
+
+	if data_users:
+
+		if call.data == "main":
+			await bot.delete_state(call.from_user.id, call.message.chat.id)
+			await bot.delete_message(call.message.chat.id, call.message.id)
+			await chat_director(call.message)
+
+		elif call.data == "back":
+
+			if pointer:
+				pointer -= 1
+				user_id = data_users[pointer][0]
+				user_post = data_users[pointer][1]
+
+				markup = InlineKeyboardMarkup(row_width=3)
+				item1 = InlineKeyboardButton("<-", callback_data="back")
+				item2 = InlineKeyboardButton("Удалить сотрудника", callback_data="delete_user")
+				item3 = InlineKeyboardButton("->", callback_data="forward")
+				item4 = InlineKeyboardButton("Главное меню", callback_data="main")
+				markup.add(item1, item2, item3, item4)
+
+				await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
+									   text=f"Номер карточки: {pointer + 1}/{len(data_users)}\nID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
+									   reply_markup=markup)
+
+				async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
+					data["pointer"] = pointer
+					data['wid'] = user_id
+
+			else:
+
+				user_id = data_users[pointer][0]
+				user_post = data_users[pointer][1]
+
+				markup = InlineKeyboardMarkup(row_width=3)
+				item2 = InlineKeyboardButton("Удалить сотрудника", callback_data="delete_user")
+				item3 = InlineKeyboardButton("->", callback_data="forward")
+				item4 = InlineKeyboardButton("Главное меню", callback_data="main")
+				markup.add( item2, item3, item4)
+
+				await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
+											text=f"Вы в начале списка!\n\nНомер карточки: {pointer + 1}/{len(data_users)}\nID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
+											reply_markup=markup)
+				"""await bot.send_message(call.message.chat.id,
+									   f"ID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
+									   reply_markup=markup)"""
+
+		elif call.data == "forward":
+
+			if pointer < len(data_users) - 1:
+				pointer += 1
+				user_id = data_users[pointer][0]
+				user_post = data_users[pointer][1]
+
+				markup = InlineKeyboardMarkup(row_width=3)
+				item1 = InlineKeyboardButton("<-", callback_data="back")
+				item2 = InlineKeyboardButton("Удалить сотрудника", callback_data="delete_user")
+				item3 = InlineKeyboardButton("->", callback_data="forward")
+				item4 = InlineKeyboardButton("Главное меню", callback_data="main")
+				markup.add(item1, item2, item3, item4)
+
+				await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
+											text=f"Номер карточки: {pointer + 1}/{len(data_users)}\nID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
+											reply_markup=markup)
+
+				async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
+					data["pointer"] = pointer
+					data['wid'] = user_id
+
+			else:
+
+				user_id = data_users[pointer][0]
+				user_post = data_users[pointer][1]
+
+				markup = InlineKeyboardMarkup(row_width=3)
+				item1 = InlineKeyboardButton("<-", callback_data="back")
+				item2 = InlineKeyboardButton("Удалить сотрудника", callback_data="delete_user")
+				item4 = InlineKeyboardButton("Главное меню", callback_data="main")
+				markup.add(item1, item2, item4)
+
+				await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
+											text=f"Вы в конце списка!\nНомер карточки: {pointer + 1}/{len(data_users)}\nID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
+											reply_markup=markup)
+
+		elif call.data == "delete_user":
+			markup = InlineKeyboardMarkup(row_width=2)
+			item1 = InlineKeyboardButton("Отмена", callback_data="cancel_confirming")
+			item2 = InlineKeyboardButton("Подтвердить", callback_data="go_confirming")
+			markup.add(item1, item2)
+
+			await bot.edit_message_text("Вы точно хотите удалить сотрудника?", chat_id=call.message.chat.id,
+										message_id=call.message.id, reply_markup=markup)
+
+			await bot.set_state(call.from_user.id, States.CONFIRM_DELETE, call.message.chat.id)
+
+	else:
+		await bot.edit_message_text("Список пуст!", call.message.chat.id, call.message.id)
 		await bot.delete_state(call.from_user.id, call.message.chat.id)
-		await bot.delete_message(call.message.chat.id, call.message.id)
 		await chat_director(call.message)
-
-	elif call.data == "back":
-
-		async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
-			data_users = data['data_users']
-			pointer = data["pointer"]
-
-		if pointer:
-			pointer -= 1
-			user_id = data_users[pointer][0]
-			user_post = data_users[pointer][1]
-
-			markup = InlineKeyboardMarkup(row_width=3)
-			item1 = InlineKeyboardButton("<-", callback_data="back")
-			item2 = InlineKeyboardButton("Удалить сотрудника", callback_data="delete_user")
-			item3 = InlineKeyboardButton("->", callback_data="forward")
-			item4 = InlineKeyboardButton("Главное меню", callback_data="main")
-			markup.add(item1, item2, item3, item4)
-
-			await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
-								   text=f"Номер карточки: {pointer + 1}/{len(data_users)}\nID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
-								   reply_markup=markup)
-
-			async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
-				data["pointer"] = pointer
-				data['wid'] = user_id
-
-		else:
-
-			user_id = data_users[pointer][0]
-			user_post = data_users[pointer][1]
-
-			markup = InlineKeyboardMarkup(row_width=3)
-			item2 = InlineKeyboardButton("Удалить сотрудника", callback_data="delete_user")
-			item3 = InlineKeyboardButton("->", callback_data="forward")
-			item4 = InlineKeyboardButton("Главное меню", callback_data="main")
-			markup.add( item2, item3, item4)
-
-			await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
-										text=f"Вы в начале списка!\n\nНомер карточки: {pointer + 1}/{len(data_users)}\nID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
-										reply_markup=markup)
-			"""await bot.send_message(call.message.chat.id,
-								   f"ID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
-								   reply_markup=markup)"""
-
-	elif call.data == "forward":
-
-		async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
-			data_users = data['data_users']
-			print(data_users)
-			pointer = data["pointer"]
-
-		if pointer < len(data_users) - 1:
-			pointer += 1
-			user_id = data_users[pointer][0]
-			user_post = data_users[pointer][1]
-
-			markup = InlineKeyboardMarkup(row_width=3)
-			item1 = InlineKeyboardButton("<-", callback_data="back")
-			item2 = InlineKeyboardButton("Удалить сотрудника", callback_data="delete_user")
-			item3 = InlineKeyboardButton("->", callback_data="forward")
-			item4 = InlineKeyboardButton("Главное меню", callback_data="main")
-			markup.add(item1, item2, item3, item4)
-
-			await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
-										text=f"Номер карточки: {pointer + 1}/{len(data_users)}\nID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
-										reply_markup=markup)
-
-			async with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
-				data["pointer"] = pointer
-				data['wid'] = user_id
-
-		else:
-
-			user_id = data_users[pointer][0]
-			user_post = data_users[pointer][1]
-
-			markup = InlineKeyboardMarkup(row_width=3)
-			item1 = InlineKeyboardButton("<-", callback_data="back")
-			item2 = InlineKeyboardButton("Удалить сотрудника", callback_data="delete_user")
-			item4 = InlineKeyboardButton("Главное меню", callback_data="main")
-			markup.add(item1, item2, item4)
-
-			await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
-										text=f"Вы в конце списка!\nНомер карточки: {pointer + 1}/{len(data_users)}\nID сотрудника - {user_id}\n\nДолжность сотрудника - {user_post}",
-										reply_markup=markup)
-
-	elif call.data == "delete_user":
-		markup = InlineKeyboardMarkup(row_width=2)
-		item1 = InlineKeyboardButton("Отмена", callback_data="cancel_confirming")
-		item2 = InlineKeyboardButton("Подтвердить", callback_data="go_confirming")
-		markup.add(item1, item2)
-
-		await bot.edit_message_text("Вы точно хотите удалить сотрудника?", chat_id=call.message.chat.id,
-									message_id=call.message.id, reply_markup=markup)
-
-		await bot.set_state(call.from_user.id, States.CONFIRM_DELETE, call.message.chat.id)
 
 
 
