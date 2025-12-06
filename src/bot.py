@@ -2,10 +2,15 @@ from telebot.async_telebot import AsyncTeleBot
 from telebot.asyncio_storage import StateMemoryStorage
 from telebot.asyncio_handler_backends import State, StatesGroup
 from telebot import asyncio_filters
+from xml.dom import minidom
+
 import config
 import asyncio
 import sqlite3
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import csv, os, json, yaml
+import xml.etree.ElementTree as ET
+
 
 password = "Jbc[L(AXneWTJ!@Z"
 #conn = pymysql.connect(host='localhost', user='finance_helper_admin', password=password, database='finance_helper_admin')
@@ -15,6 +20,164 @@ cursor = conn.cursor()
 cursor.execute("PRAGMA foreign_keys = ON")
 
 bot = AsyncTeleBot(config.token, state_storage=StateMemoryStorage())
+
+
+async def out():
+	"""
+	Экспортирует таблицу data_users с связанными данными из reports
+	в 4 формата (CSV, JSON, XML, YAML) при запуске бота
+	"""
+	try:
+		# Создаем папку out, если её нет
+		output_dir = 'out'
+		if not os.path.exists(output_dir):
+			os.makedirs(output_dir)
+
+		# Выполняем SQL-запрос для получения данных
+		query = """
+        SELECT 
+            du.staff_id, 
+            du.post,
+            r.writing_id,
+            r.time,
+            r.description
+        FROM data_users du
+        LEFT JOIN reports r ON du.staff_id = r.accountant_id
+        ORDER BY du.staff_id, r.time
+        """
+
+		cursor.execute(query)
+		rows = cursor.fetchall()
+
+		# Группируем данные по пользователям
+		users_dict = {}
+		for row in rows:
+			staff_id = row[0]  # Индекс 0: staff_id
+
+			if staff_id not in users_dict:
+				users_dict[staff_id] = {
+					"staff_id": staff_id,
+					"post": row[1],  # Индекс 1: post
+					"reports": []
+				}
+
+			# Добавляем отчет, если он есть
+			if row[2] is not None:  # Индекс 2: writing_id
+				report_data = {
+					"report_id": row[2],  # Индекс 2: writing_id
+					"time": row[3],  # Индекс 3: time
+					"description": row[4]  # Индекс 4: description
+				}
+				users_dict[staff_id]["reports"].append(report_data)
+
+		data = list(users_dict.values())
+
+		# 1. Экспорт в JSON
+		with open(os.path.join(output_dir, 'finance_helper_admin.json'), 'w', encoding='utf-8') as f:
+			json.dump(data, f, ensure_ascii=False, indent=2)
+
+		# 2. Экспорт в CSV
+		with open(os.path.join(output_dir, 'finance_helper_admin.csv'), 'w', encoding='utf-8', newline='') as f:
+			writer = csv.writer(f)
+			writer.writerow(['staff_id', 'post', 'reports'])
+
+			for item in data:
+				reports_str = ""
+				if item.get('reports'):
+					reports_list = []
+					for report in item['reports']:
+						report_str = f"ID:{report['report_id']}|Time:{report['time']}|Desc:{report['description']}"
+						reports_list.append(report_str)
+					reports_str = ';; '.join(reports_list)
+
+				writer.writerow([item['staff_id'], item['post'], reports_str])
+
+		# 3. Экспорт в XML
+		root = ET.Element('data_users')
+
+		for item in data:
+			user_elem = ET.SubElement(root, 'user')
+
+			staff_id_elem = ET.SubElement(user_elem, 'staff_id')
+			staff_id_elem.text = str(item['staff_id'])
+
+			post_elem = ET.SubElement(user_elem, 'post')
+			post_elem.text = item['post']
+
+			reports_elem = ET.SubElement(user_elem, 'reports')
+			if item.get('reports'):
+				for report in item['reports']:
+					report_elem = ET.SubElement(reports_elem, 'report')
+
+					report_id_elem = ET.SubElement(report_elem, 'report_id')
+					report_id_elem.text = str(report['report_id'])
+
+					time_elem = ET.SubElement(report_elem, 'time')
+					time_elem.text = report['time']
+
+					description_elem = ET.SubElement(report_elem, 'description')
+					description_elem.text = report['description']
+
+		xml_str = ET.tostring(root, encoding='unicode')
+		dom = minidom.parseString(xml_str)
+		pretty_xml = dom.toprettyxml(indent='  ')
+		pretty_xml = '\n'.join([line for line in pretty_xml.split('\n') if line.strip()])
+
+		with open(os.path.join(output_dir, 'finance_helper_admin.xml'), 'w', encoding='utf-8') as f:
+			f.write(pretty_xml)
+
+		# 4. Экспорт в YAML
+		with open(os.path.join(output_dir, 'finance_helper_admin.yaml'), 'w', encoding='utf-8') as f:
+			yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+
+		print("Экспорт данных в 4 формата выполнен успешно!")
+
+	except Exception as e:
+		print(f"Ошибка при экспорте данных: {e}")
+
+async def create_tables():
+	# Таблица пользователей
+	cursor.execute('''
+        CREATE TABLE IF NOT EXISTS data_users (
+            staff_id INTEGER PRIMARY KEY,
+            post TEXT
+        )
+    ''')
+
+	# Таблица расходов
+	cursor.execute('''
+        CREATE TABLE IF NOT EXISTS expenses (
+            writing_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            time TEXT,
+            value REAL,
+            category TEXT
+        )
+    ''')
+
+	# Таблица доходов
+	cursor.execute('''
+        CREATE TABLE IF NOT EXISTS incomes (
+            writing_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            time TEXT,
+            value REAL,
+            category TEXT
+        )
+    ''')
+
+	# Таблица отчетов
+	cursor.execute('''
+        CREATE TABLE IF NOT EXISTS reports (
+            writing_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            time TEXT,
+            accountant_id INTEGER REFERENCES data_users (staff_id) 
+                ON DELETE CASCADE 
+                ON UPDATE CASCADE,
+            description TEXT
+        )
+    ''')
+
+	conn.commit()
+
 
 
 class States(StatesGroup):
@@ -672,6 +835,8 @@ async def enter_expense_value(message):
 ### РЕАКЦИЯ НА КОМАНДУ START
 @bot.message_handler(commands=['start'])
 async def welcome(message):
+	await create_tables()
+	await out()
 	cursor.execute("SELECT staff_id FROM data_users")
 	data_users = cursor.fetchall()
 	print(data_users, message.chat.id)

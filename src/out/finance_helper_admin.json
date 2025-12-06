@@ -1,26 +1,18 @@
 [
-{"type":"header","version":"5.2.1","comment":"Export to JSON plugin for PHPMyAdmin"},
-{"type":"database","name":"finance_helper_admin"},
-{"type":"table","name":"data_users","database":"finance_helper_admin","data":
-[
-{"staff_id":"1433721108","post":"Директор"},
-{"staff_id":"6440837631","post":"Бухгалтер"}
-]
-}
-,{"type":"table","name":"expenses","database":"finance_helper_admin","data":
-[
-{"writing_id":"1","time":"2025-11-18 17:17:53","value":"10","category":"потерял"}
-]
-}
-,{"type":"table","name":"incomes","database":"finance_helper_admin","data":
-[
-{"writing_id":"1","time":"2025-11-18 17:17:22","value":"120.4","category":"просто так пришли"},
-{"writing_id":"2","time":"2025-11-18 17:17:41","value":"10","category":"нашёл"}
-]
-}
-,{"type":"table","name":"reports","database":"finance_helper_admin","data":
-[
-{"writing_id":"1","time":"2025-11-18 17:17:57","accountant_id":"6440837631","description":"Доход компании составил 120.4"}
-]
-}
+  {
+    "staff_id": 732952280,
+    "post": "Директор",
+    "reports": []
+  },
+  {
+    "staff_id": 1433721108,
+    "post": "Бухгалтер",
+    "reports": [
+      {
+        "report_id": 6,
+        "time": "2025-12-06 14:01:50",
+        "description": "Доход компании составил 80000097983.0"
+      }
+    ]
+  }
 ]

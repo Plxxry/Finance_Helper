@@ -1,0 +1,9 @@
+- staff_id: 732952280
+  post: Директор
+  reports: []
+- staff_id: 1433721108
+  post: Бухгалтер
+  reports:
+  - report_id: 6
+    time: '2025-12-06 14:01:50'
+    description: Доход компании составил 80000097983.0
