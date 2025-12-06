@@ -4,8 +4,8 @@ from telebot.asyncio_handler_backends import State, StatesGroup
 from telebot import asyncio_filters
 import config
 import asyncio
-import pymysql, sqlite3
-from telebot.types import InlineKeyboardMarkup, ReplyKeyboardMarkup, InlineKeyboardButton, KeyboardButton
+import sqlite3
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 password = "Jbc[L(AXneWTJ!@Z"
 #conn = pymysql.connect(host='localhost', user='finance_helper_admin', password=password, database='finance_helper_admin')
